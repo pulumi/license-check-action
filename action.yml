@@ -11,6 +11,10 @@ runs:
       with:
         repository: https://github.com/kmosher/licensei
     - run: make build
-    - run: install.sh
-    - run: ./bin/licensei ${{ inputs.path }}
+      shell: bash
+    - run: ./install.sh
+      shell: bash
+    - run: ./bin/licensei check ${{ inputs.path }}
+      shell: bash
     - run: echo "${{ github.action_path }}" >> $GITHUB_PATH
+      shell: bash
