@@ -13,6 +13,10 @@ runs:
   steps:
     - run: go install github.com/pulumi/go-licenses@ec48b64
       shell: bash
+    - run: pwd
+      shell: bash
+    - run: ls -la
+      shell: bash
     - run: |
         cd "${{ inputs.module-path }}"
         go-licenses check ./... --ignore $(go list -m)
