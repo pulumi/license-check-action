@@ -1,20 +1,21 @@
 name: 'BUSL Blocker'
 description: 'BUSL Blocker'
 inputs:
-  path:
-    description: 'Path to the source code to check'
+  module-path:
+    description: 'Path to the go module you want to test'
     required: true
+  ignore-modules:
+    description: 'Comma separated list of modules to ignore'
+    required: false
+    default: ''
 runs:
   using: "composite"
   steps:
-    - uses: actions/checkout@v4
-      with:
-        repository: goph/licensei
-    - run: make build
+    - run: go install github.com/pulumi/go-licenses@ec48b64
       shell: bash
-    - run: ./install.sh
-      shell: bash
-    - run: ./bin/licensei check ${{ inputs.path }}
-      shell: bash
-    - run: echo "${{ github.action_path }}" >> $GITHUB_PATH
+    - run: |
+        cd "${{ inputs.module-path }}"
+        go-licenses check ./... --ignore $(go list -m)
+        --ignore "${{ inputs.ignore-modules }}}}"
+
       shell: bash
