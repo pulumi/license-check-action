@@ -15,14 +15,8 @@ runs:
       shell: bash
     - run: echo "${{ github.action_path }}/bin/" >> $GITHUB_PATH
       shell: bash
-    - run: pwd
-      shell: bash
-    - run: ls -la
-      shell: bash
-    - run: |
-        cd "${{ inputs.module-path }}"
-      shell: bash
     - run: |
         go-licenses check ./... --ignore $(go list -m) \
         --ignore "${{ inputs.ignore-modules }}"
+      working-directory: ${{ inputs.module-path }}
       shell: bash
