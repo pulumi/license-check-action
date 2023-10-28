@@ -22,6 +22,5 @@ runs:
     - run: |
         cd "${{ inputs.module-path }}"
         go-licenses check ./... --ignore $(go list -m)
-        --ignore "${{ inputs.ignore-modules }}}}"
-
+        --ignore "${{ inputs.ignore-modules }}"
       shell: bash
