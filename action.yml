@@ -17,6 +17,6 @@ runs:
       shell: bash
     - run: |
         go-licenses check ./... --ignore $(go list -m) \
-        --ignore "${{ inputs.ignore-modules }}"
+        --ignore $(tr -d ' \n' <<<"${{ inputs.ignore-modules }}")
       working-directory: ${{ inputs.module-path }}
       shell: bash
