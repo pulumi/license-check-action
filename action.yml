@@ -19,7 +19,7 @@ runs:
     # golang will copy the LICENSE from the repo root into each package without its own when pulling
     # dependencies, but that doesn't occur when we're running against a raw checkout.
     - run: |
-        go-licenses check ./... --ignore $(go list -m) \
+        go-licenses check ./... --ignore $(go list -m) --include_tests \
         --ignore $(tr -d ' \n' <<<"${{ inputs.ignore-modules }}")
       working-directory: ${{ inputs.module-path }}
       shell: bash
