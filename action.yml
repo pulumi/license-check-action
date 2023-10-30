@@ -15,6 +15,9 @@ runs:
       shell: bash
     - run: echo "${{ github.action_path }}/bin/" >> $GITHUB_PATH
       shell: bash
+    # We ignore the module being checked (go list -m) because we often cannot detect our own LICENSE.
+    # golang will copy the LICENSE from the repo root into each package without its own when pulling
+    # dependencies, but that doesn't occur when we're running against a raw checkout.
     - run: |
         go-licenses check ./... --ignore $(go list -m) \
         --ignore $(tr -d ' \n' <<<"${{ inputs.ignore-modules }}")
