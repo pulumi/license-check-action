@@ -20,6 +20,7 @@ runs:
     # dependencies, but that doesn't occur when we're running against a raw checkout.
     - run: |
         go-licenses check ./... --ignore $(go list -m) --include_tests \
-        --ignore $(tr -d ' \n' <<<"${{ inputs.ignore-modules }}")
+        --ignore $(tr -d ' \n' <<<"${{ inputs.ignore-modules }}") \
+        --ignore $(go list std | awk 'NR > 1 { printf(",") } { printf("%s",$0) } END { print "" }')
       working-directory: ${{ inputs.module-path }}
       shell: bash
