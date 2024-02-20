@@ -15,9 +15,15 @@ runs:
       shell: bash
     - run: echo "${{ github.action_path }}/bin/" >> $GITHUB_PATH
       shell: bash
-    # We ignore the module being checked (go list -m) because we often cannot detect our own LICENSE.
-    # golang will copy the LICENSE from the repo root into each package without its own when pulling
-    # dependencies, but that doesn't occur when we're running against a raw checkout.
+    # We ignore the module being checked (go list -m) because we often cannot detect our
+    # own LICENSE.  golang will copy the LICENSE from the repo root into each package
+    # without its own when pulling dependencies, but that doesn't occur when we're running
+    # against a raw checkout.
+    #
+    # We ignore the standard library (go list std) as a workaround for
+    # https://github.com/google/go-licenses/issues/244. The awk script converts the output
+    # of `go list std` (line separated modules) to the input that `--ignore` expects
+    # (comma separated modules).
     - run: |
         go-licenses check ./... --ignore $(go list -m) --include_tests \
         --ignore $(tr -d ' \n' <<<"${{ inputs.ignore-modules }}") \
