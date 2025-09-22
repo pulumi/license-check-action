@@ -11,7 +11,7 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - run: GOBIN="${{ github.action_path }}/bin/" go install github.com/pulumi/go-licenses@ec48b64
+    - run: GOBIN="${{ github.action_path }}/bin/" go install github.com/pulumi/go-licenses/v2@latest
       shell: bash
     - run: echo "${{ github.action_path }}/bin/" >> $GITHUB_PATH
       shell: bash
