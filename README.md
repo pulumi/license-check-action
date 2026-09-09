@@ -31,6 +31,31 @@ It is a comma-separated string, each entry contains the start of a path under wh
 See "[Ignoring packages](https://github.com/pulumi/go-licenses#ignoring-packages)" for more details.
 
 
+## Versioning
+
+Releases are tagged `vMAJOR.MINOR.PATCH`, and a moving `vMAJOR` alias points at
+the newest release in that line — the same shape as `pulumi/actions`. Publishing
+a GitHub release moves the alias automatically (`.github/workflows/tag.yml`).
+
+Consumers may pin either:
+
+```yaml
+- uses: pulumi/license-check-action@v1   # fixes and new detections, no majors
+- uses: pulumi/license-check-action@main # every merge, immediately
+```
+
+`@main` is what the ~30 current consumers use, and that is fine for now — this
+repo changes rarely and the fleet moving together has kept it consistent. The
+tags exist so that stops being the only option: a bad merge here reaches every
+consumer's next CI run at once, and until now there was no earlier ref to fall
+back to. Pinning `@v1` is the escape hatch, whether it is adopted fleet-wide or
+reached for during an incident.
+
+A major bump is for changes to what the action *rejects* — a go-licenses major
+that reclassifies a licence, or a change to the inputs. Anything that only fixes
+this action's own behaviour is a minor or patch, and reaches `@v1` consumers
+without their involvement, which is the point of the alias.
+
 ## Development
 
 `testdata/` holds two throwaway Go modules the CI workflow runs this action
