@@ -67,8 +67,21 @@ runs:
         # package path -- so this died on `malformed import path` for anyone who
         # left the input at its default.
         trimmed=$(tr -d ' \t\r\n' <<<"${IGNORE_MODULES}")
-        if [[ -n ${trimmed} ]]; then
-          ignores+=(--ignore "${trimmed}")
+
+        # Empty entries are dropped, and that is a correctness fix rather than
+        # tidying. `--ignore` matches by prefix, an empty entry is the empty
+        # prefix, and the empty prefix matches every package -- so a single
+        # trailing comma turns the whole check into a silent pass, reporting
+        # success with a forbidden licence present. Warn rather than fail: the
+        # cost of a typo should not be a blocked PR, but it must not be a
+        # disabled gate either.
+        cleaned=$(sed -E 's/,+/,/g; s/^,//; s/,$//' <<<"${trimmed}")
+        if [[ ${cleaned} != "${trimmed}" ]]; then
+          echo "::warning::ignore-modules contained empty entries (a stray or repeated comma); they were dropped. An empty entry matches every package and would have passed this check silently."
+        fi
+
+        if [[ -n ${cleaned} ]]; then
+          ignores+=(--ignore "${cleaned}")
         fi
 
         go-licenses check ./... --include_tests "${ignores[@]}"

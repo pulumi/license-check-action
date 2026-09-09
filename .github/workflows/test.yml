@@ -74,6 +74,55 @@ jobs:
             exit 1
           fi
 
+  empty-ignore-entries:
+    name: Survives a stray comma
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: stable
+      # `--ignore` matches by prefix, so an empty entry is the empty prefix and
+      # matches everything. A trailing comma here used to pass the whole check
+      # with a BUSL dependency present -- a silently disabled gate, which is the
+      # worst failure this action has. The ignored module is deliberately absent
+      # from the fixture: only the stray comma could make this pass.
+      - id: check
+        uses: ./
+        continue-on-error: true
+        with:
+          module-path: testdata/forbidden
+          ignore-modules: "github.com/not/in/this/module,"
+      - name: Assert the stray comma did not disable the check
+        if: steps.check.outcome != 'failure'
+        run: |
+          echo "::error::a trailing comma in ignore-modules silently passed a BUSL dependency"
+          exit 1
+
+  input-is-data-not-shell:
+    name: Treats inputs as data
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: stable
+      # The `env:` binding in action.yml exists so an input cannot reach the
+      # shell as code. Without a test, a future edit reintroducing `${{ }}`
+      # interpolation would look identical and pass everything else.
+      - id: check
+        uses: ./
+        continue-on-error: true
+        with:
+          module-path: testdata/forbidden
+          ignore-modules: "example.com/busl\"; touch /tmp/pwned; #"
+      - name: Assert nothing was executed
+        run: |
+          if [[ -e /tmp/pwned ]]; then
+            echo "::error::ignore-modules was interpreted as shell"
+            exit 1
+          fi
+
   ignore-modules:
     name: Honours ignore-modules
     runs-on: ubuntu-latest
