@@ -1,0 +1,60 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # This action can break without the repo changing, and a consumer's red CI
+  # should not be how we find out.
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  permitted:
+    name: Passes on permissive licences
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: stable
+      - uses: ./
+        with:
+          module-path: testdata/permitted
+
+  forbidden:
+    name: Fails on a BUSL dependency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: stable
+      - id: check
+        uses: ./
+        continue-on-error: true
+        with:
+          module-path: testdata/forbidden
+      # Without this the job goes green if the action stops detecting anything
+      # at all, which is the regression worth catching.
+      - name: Assert the check rejected it
+        if: steps.check.outcome == 'success'
+        run: |
+          echo "::error::the action passed on a BUSL dependency"
+          exit 1
+
+  ignore-modules:
+    name: Honours ignore-modules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: stable
+      - uses: ./
+        with:
+          module-path: testdata/forbidden
+          ignore-modules: example.com/busl

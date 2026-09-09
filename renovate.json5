@@ -1,0 +1,29 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: ["github>pulumi/renovate-config//default.json5"],
+
+  // action.yml pins go-licenses in a step `env:`, which no built-in manager
+  // reads. The `# renovate:` annotation above the value is what this matches.
+  customManagers: [
+    {
+      customType: "regex",
+      managerFilePatterns: ["/^action\\.yml$/"],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>[^\\s]+)\\s+GO_LICENSES_VERSION:\\s*(?<currentValue>\\S+)",
+      ],
+      versioningTemplate: "semver",
+    },
+  ],
+
+  packageRules: [
+    {
+      // A go-licenses major can change which licences classify as forbidden,
+      // which is this action's entire contract. Hold it for a person rather
+      // than inheriting the preset's automerge.
+      matchManagers: ["custom.regex"],
+      matchUpdateTypes: ["major"],
+      automerge: false,
+      dependencyDashboardApproval: true,
+    },
+  ],
+}
