@@ -57,9 +57,17 @@ jobs:
           # breaking entirely, so re-run the check and read the reason. Without
           # this the job stays green exactly when detection stops working, which
           # is the regression it exists to catch.
-          out=$(go-licenses check ./... --include_tests \
-                  --ignore "$(go list -m)" \
-                  --ignore "$(go list std | awk 'NR > 1 { printf(",") } { printf("%s",$0) } END { print "" }')" 2>&1)
+          #
+          # The re-run is the `if` condition rather than a plain assignment
+          # because GitHub runs `run:` under `bash -e`: a bare assignment from a
+          # command expected to exit non-zero kills the step before the grep.
+          if out=$(go-licenses check ./... --include_tests \
+                     --ignore "$(go list -m)" \
+                     --ignore "$(go list std | awk 'NR > 1 { printf(",") } { printf("%s",$0) } END { print "" }')" 2>&1); then
+            echo "::error::the re-run passed on a BUSL dependency; detection is broken"
+            echo "${out}"
+            exit 1
+          fi
           if ! grep -q "BUSL-1.1" <<<"${out}"; then
             echo "::error::the action failed, but not on the licence:"
             echo "${out}"
