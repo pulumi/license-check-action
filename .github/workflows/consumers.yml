@@ -53,15 +53,24 @@ jobs:
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # Take the first matching step inside yq rather than piping through
+          # `head -1`: a consumer writing the value as a literal block scalar
+          # (`|`) keeps its newlines, and `head` would silently truncate the
+          # list to one entry -- which passes, because a shorter ignore list
+          # only ever makes the check stricter or wrong in the quiet direction.
           ignore=$(yq -r '
-            .jobs[].steps[]
-            | select(.uses // "" | test("license-check-action"))
-            | .with["ignore-modules"] // ""' "${f}" | head -1)
+            [ .jobs[].steps[]
+              | select(.uses // "" | test("license-check-action"))
+              | .with["ignore-modules"] // "" ][0] // ""' "${f}")
+
+          # Random delimiter: the value is third-party content, and a static
+          # `EOF` in it would let it write arbitrary step outputs.
+          delim="EOF_$(openssl rand -hex 16)"
           {
             echo "skip=false"
-            echo "ignore<<EOF"
+            echo "ignore<<${delim}"
             echo "${ignore}"
-            echo "EOF"
+            echo "${delim}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Fetch their dependencies

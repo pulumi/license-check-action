@@ -75,8 +75,17 @@ jobs:
           fi
 
   empty-ignore-entries:
-    name: Survives a stray comma
+    name: Survives a stray comma (${{ matrix.shape }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every position an empty entry can occupy. All three produce the empty
+        # prefix, and the empty prefix matches everything.
+        shape:
+          - "github.com/not/in/this/module,"
+          - ",github.com/not/in/this/module"
+          - "github.com/not/in/this,,github.com/nor/this"
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
@@ -92,7 +101,7 @@ jobs:
         continue-on-error: true
         with:
           module-path: testdata/forbidden
-          ignore-modules: "github.com/not/in/this/module,"
+          ignore-modules: ${{ matrix.shape }}
       - name: Assert the stray comma did not disable the check
         if: steps.check.outcome != 'failure'
         run: |
