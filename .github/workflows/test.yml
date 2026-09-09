@@ -5,12 +5,19 @@ on:
   push:
     branches: [main]
   # This action can break without the repo changing, and a consumer's red CI
-  # should not be how we find out.
+  # should not be how we find out. `workflow_dispatch` matters as much as the
+  # schedule: GitHub disables scheduled runs after 60 days without a commit,
+  # and for this repo that is the normal cadence rather than an edge case.
   schedule:
     - cron: "17 6 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   permitted:
@@ -38,13 +45,26 @@ jobs:
         continue-on-error: true
         with:
           module-path: testdata/forbidden
-      # Without this the job goes green if the action stops detecting anything
-      # at all, which is the regression worth catching.
-      - name: Assert the check rejected it
-        if: steps.check.outcome == 'success'
+      - name: Assert it failed, and failed on the licence
+        working-directory: testdata/forbidden
         run: |
-          echo "::error::the action passed on a BUSL dependency"
-          exit 1
+          set -uo pipefail
+          if [[ "${{ steps.check.outcome }}" != "failure" ]]; then
+            echo "::error::the action passed on a BUSL dependency"
+            exit 1
+          fi
+          # The outcome alone is satisfied by any failure, including the action
+          # breaking entirely, so re-run the check and read the reason. Without
+          # this the job stays green exactly when detection stops working, which
+          # is the regression it exists to catch.
+          out=$(go-licenses check ./... --include_tests \
+                  --ignore "$(go list -m)" \
+                  --ignore "$(go list std | awk 'NR > 1 { printf(",") } { printf("%s",$0) } END { print "" }')" 2>&1)
+          if ! grep -q "BUSL-1.1" <<<"${out}"; then
+            echo "::error::the action failed, but not on the licence:"
+            echo "${out}"
+            exit 1
+          fi
 
   ignore-modules:
     name: Honours ignore-modules
@@ -54,7 +74,14 @@ jobs:
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
           go-version: stable
+      # The folded multi-entry form is what every real consumer passes, and it
+      # is the shape the input's whitespace normalisation exists for. The extra
+      # entries are absent from the fixture on purpose: an ignore list is a set
+      # of prefixes, not an exact match.
       - uses: ./
         with:
           module-path: testdata/forbidden
-          ignore-modules: example.com/busl
+          ignore-modules: >-
+            example.com/busl,
+            github.com/golang/freetype,
+            github.com/jmespath/go-jmespath

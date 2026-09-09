@@ -66,7 +66,7 @@ runs:
         # following flag, and go-licenses then reads the argument after it as a
         # package path -- so this died on `malformed import path` for anyone who
         # left the input at its default.
-        trimmed=$(tr -d ' \n' <<<"${IGNORE_MODULES}")
+        trimmed=$(tr -d ' \t\r\n' <<<"${IGNORE_MODULES}")
         if [[ -n ${trimmed} ]]; then
           ignores+=(--ignore "${trimmed}")
         fi

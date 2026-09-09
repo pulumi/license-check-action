@@ -4,6 +4,13 @@
 
   // action.yml pins go-licenses in a step `env:`, which no built-in manager
   // reads. The `# renovate:` annotation above the value is what this matches.
+  //
+  // It captures the version only. The module path's major suffix (`/v2`) is
+  // part of `depName` and is hardcoded again at the `go install` site, and
+  // neither is rewritten here -- so a v3, which in Go is a different module
+  // path, cannot be proposed by this manager at all. Moving to v3 is a manual
+  // edit, which is the right amount of friction for a bump that can change
+  // which licences count as forbidden.
   customManagers: [
     {
       customType: "regex",
@@ -15,15 +22,14 @@
     },
   ],
 
-  packageRules: [
-    {
-      // A go-licenses major can change which licences classify as forbidden,
-      // which is this action's entire contract. Hold it for a person rather
-      // than inheriting the preset's automerge.
-      matchManagers: ["custom.regex"],
-      matchUpdateTypes: ["major"],
-      automerge: false,
-      dependencyDashboardApproval: true,
-    },
-  ],
+  // No packageRules. The org preset sets `dependencyDashboardApproval: true`
+  // globally and lifts it only for first-party `github.com/pulumi/**` package
+  // names, which a custom manager's dep never matches -- so every go-licenses
+  // bump already waits for someone to tick the dashboard. A local rule holding
+  // majors would restate that rather than change it.
+  //
+  // Worth knowing rather than fixing: this makes go-licenses *patch* releases
+  // wait on the dashboard too, where under `@latest` they reached consumers on
+  // the next CI run. A misclassification fix is therefore gated on someone
+  // looking at a repo nobody watches.
 }

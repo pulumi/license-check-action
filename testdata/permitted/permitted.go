@@ -2,7 +2,8 @@
 // must pass against it.
 package permitted
 
-import "github.com/google/uuid"
+import "example.com/mit"
 
-// New exists to create a real dependency edge for go-licenses to walk.
-func New() string { return uuid.NewString() }
+// Answer forces a dependency edge on the MIT module; without a real call the
+// import is not one.
+func Answer() int { return mit.Answer() }
