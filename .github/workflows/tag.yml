@@ -11,13 +11,17 @@ jobs:
   tag-major:
     name: Move the major alias
     runs-on: ubuntu-latest
+    # `edited` fires on drafts as well, and a draft's `tag_name` names a tag
+    # that does not exist yet -- the version regex cannot catch that, because a
+    # draft can carry a perfectly well-formed v1.2.3.
+    if: github.event.release.draft == false
     steps:
       # Done inline rather than through Actions-R-Us/actions-tagger, which the
       # other pulumi action repos use: it has had no release since 2023, still
       # declares the long-removed node16 runtime, and is referenced there as a
       # mutable `@latest` -- an unmaintained third party running against a
       # write-capable token on every release.
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false
       - name: Move the major alias to this release

@@ -23,10 +23,19 @@ major=${RELEASE_TAG%%.*}
 #
 # `sort -V` rather than `sort`: lexically v2.9.0 sorts above v2.10.0, which
 # would move the alias backwards on the tenth minor release of any major.
+# `|| true` because an unmatched grep is a pipeline failure under `pipefail`,
+# which would abort with no message at all. The released tag should always be
+# in this list, so an empty result means something is wrong upstream and is
+# worth saying out loud rather than dying silently.
 highest=$(gh api "repos/${REPO}/git/refs/tags" --paginate \
   --jq '.[].ref | ltrimstr("refs/tags/")' \
-  | grep -E "^${major}\.[0-9]+\.[0-9]+$" \
+  | { grep -E "^${major}\.[0-9]+\.[0-9]+$" || true; } \
   | sort -V | tail -1)
+
+if [[ -z ${highest} ]]; then
+  echo "::error::no ${major}.x.y tags found, so ${RELEASE_TAG} cannot be placed"
+  exit 1
+fi
 
 if [[ ${highest} != "${RELEASE_TAG}" ]]; then
   echo "::notice::${highest} supersedes ${RELEASE_TAG}; leaving ${major} where it is"
@@ -36,7 +45,7 @@ fi
 sha=$(gh api "repos/${REPO}/commits/${RELEASE_TAG}" --jq .sha)
 
 if gh api "repos/${REPO}/git/ref/tags/${major}" >/dev/null 2>&1; then
-  gh api -X PATCH "repos/${REPO}/git/refs/tags/${major}" -F sha="${sha}" -F force=true >/dev/null
+  gh api -X PATCH "repos/${REPO}/git/refs/tags/${major}" -f sha="${sha}" -F force=true >/dev/null
   echo "::notice::moved ${major} to ${RELEASE_TAG} (${sha})"
 else
   gh api -X POST "repos/${REPO}/git/refs" -f ref="refs/tags/${major}" -f sha="${sha}" >/dev/null

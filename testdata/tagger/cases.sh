@@ -49,6 +49,7 @@ run_case "creates missing alias"  "v2.0.0"       "v1.1.0 v2.0.0"             "v1
 run_case "v2.10.0 beats v2.9.0"   "v2.9.0"       "v2.9.0 v2.10.0"            "v2"     "v2.10.0 supersedes v2.9.0"       "none"
 run_case "v20 is not a v2"        "v2.10.0"      "v2.9.0 v2.10.0 v20.0.0"    "v2"     "moved v2 to v2.10.0"             "PATCH"
 run_case "v20 gets its own alias" "v20.0.0"      "v2.10.0 v20.0.0"           "v2"     "created v20 at v20.0.0"          "POST"
+run_case "no tags for a major"    "v3.0.0"       "v1.0.0 v2.0.0"             "v2"     "no v3.x.y tags found"            "none"
 
 if [[ ${failures} -gt 0 ]]; then
   echo "${failures} case(s) failed"
