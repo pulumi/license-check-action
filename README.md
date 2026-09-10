@@ -51,6 +51,23 @@ consumer's next CI run at once, and until now there was no earlier ref to fall
 back to. Pinning `@v1` is the escape hatch, whether it is adopted fleet-wide or
 reached for during an incident.
 
+### Cutting a release
+
+Releases are hand-authored, and publishing one is what moves the alias:
+
+```sh
+gh release create v1.2.0 --generate-notes
+```
+
+The alias follows the *release*, not the tag. A version tag pushed without a
+release leaves `vMAJOR` pointing at the previous one, with nothing to say so --
+so cut the release rather than pushing a tag on its own. Drafts and prereleases
+are ignored on purpose: a draft names a tag that does not exist yet, and a
+prerelease would put `@vMAJOR` consumers on unreleased code.
+
+Publishing out of order is safe. The alias only ever moves forward, so
+re-publishing or editing an older release leaves it where it is.
+
 A major bump is for changes to what the action *rejects* — a go-licenses major
 that reclassifies a licence, or a change to the inputs. Anything that only fixes
 this action's own behaviour is a minor or patch, and reaches `@v1` consumers
@@ -76,6 +93,12 @@ The BUSL file under `testdata/forbidden/busl/` is a test fixture, not a licence
 grant covering anything in this repo.
 
 `ignore-modules` entries are literal path prefixes, not globs.
+
+`testdata/tagger/` covers the alias logic instead, driving
+`.github/scripts/move-major-alias.sh` against a `gh` stub -- no token and no
+network, so what is under test is the branch logic deciding whether to move the
+alias, which is where a mistake points every `@vMAJOR` consumer at the wrong
+commit.
 
 ### The go-licenses pin
 
