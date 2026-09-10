@@ -40,7 +40,6 @@ run_case() {
   echo "ok   ${name}"
 }
 
-#        name                     release tag    tags present                aliases  expected message                  expected write
 run_case "non-semver skips"       "latest"       "v1.0.0"                    "v1"     "not a stable"                    "none"
 run_case "prerelease skips"       "v1.2.0-rc.1"  "v1.0.0 v1.1.0"             "v1"     "not a stable"                    "none"
 run_case "superseded skips"       "v1.0.0"       "v1.0.0 v1.1.0"             "v1"     "v1.1.0 supersedes v1.0.0"        "none"

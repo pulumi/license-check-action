@@ -4,12 +4,8 @@
 # a major and still receive fixes.
 #
 # Reads REPO and RELEASE_TAG from the environment, and authenticates as GH_TOKEN.
-# Lives in a file rather than inline in the workflow so the test suite can run it.
 set -euo pipefail
 
-# Only stable vMAJOR.MINOR.PATCH moves the alias. A prerelease would point
-# everyone pinning `vN` at unreleased code, and a non-semver tag has no major
-# to derive.
 if [[ ! ${RELEASE_TAG} =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "::notice::${RELEASE_TAG} is not a stable vMAJOR.MINOR.PATCH tag; leaving the major alias alone"
   exit 0
@@ -23,6 +19,7 @@ major=${RELEASE_TAG%%.*}
 #
 # `sort -V` rather than `sort`: lexically v2.9.0 sorts above v2.10.0, which
 # would move the alias backwards on the tenth minor release of any major.
+#
 # `|| true` because an unmatched grep is a pipeline failure under `pipefail`,
 # which would abort with no message at all. The released tag should always be
 # in this list, so an empty result means something is wrong upstream and is

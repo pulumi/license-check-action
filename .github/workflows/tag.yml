@@ -16,11 +16,6 @@ jobs:
     # draft can carry a perfectly well-formed v1.2.3.
     if: github.event.release.draft == false
     steps:
-      # Done inline rather than through Actions-R-Us/actions-tagger, which the
-      # other pulumi action repos use: it has had no release since 2023, still
-      # declares the long-removed node16 runtime, and is referenced there as a
-      # mutable `@latest` -- an unmaintained third party running against a
-      # write-capable token on every release.
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false

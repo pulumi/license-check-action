@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Stands in for the `gh` CLI so move-major-alias.sh can be exercised without a
-# network or a token. Tag inventory comes from TAGS; writes are appended to
-# WRITES for the test to assert against.
 set -euo pipefail
 
 case "$*" in
@@ -12,8 +9,6 @@ case "$*" in
     echo "${COMMIT_SHA}"
     ;;
   *"git/ref/tags/"*)
-    # Exit non-zero when the alias does not yet exist, which is how the script
-    # chooses between creating and moving it.
     args="$*"
     alias_ref=${args##*git/ref/tags/}
     grep -qx "${alias_ref}" <<<"${EXISTING_ALIASES// /$'\n'}"
