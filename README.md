@@ -78,14 +78,16 @@ So a release only moves the alias if its tag names a commit that already
 contains `.github/workflows/tag.yml` -- tagging an older commit silently runs
 whatever that commit carried. Tag releases on `main`.
 
-Because the alias only moves forward, a bad release cannot be undone by
-publishing an older one: the job reports the newer tag as superseding and
-exits. Reverting is a manual force-push, and the run that made the bad move
-logs the sha it replaced:
+Recover from a bad release by rolling forward -- revert on `main` and cut the
+next patch version. `@vMAJOR` is a public ref other repos resolve on every run,
+so moving it backwards changes what an already-green build meant; a new version
+only ever adds a state.
 
-```sh
-git push --force origin <the sha from the run log>:refs/tags/v1
-```
+The alias cannot be walked back by this workflow in any case. Publishing an
+older release is reported as superseded and skipped, and the token cannot point
+a ref at a commit whose `.github/workflows/` differ from `main` -- which any
+older commit does, by definition. The run that made the move logs the sha it
+replaced, so what changed stays on the record.
 
 A major bump is for changes to what the action *rejects* — a go-licenses major
 that reclassifies a licence, or a change to the inputs. Anything that only fixes
