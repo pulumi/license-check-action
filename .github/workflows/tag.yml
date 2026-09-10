@@ -3,21 +3,59 @@ name: Tag
 on:
   release:
     types: [published, edited]
+  # Lets the alias be re-driven without touching release state, and lets this be
+  # rehearsed before its first live run. The `edited` path is the only other way
+  # to re-run it, and that one has side effects.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The vMAJOR.MINOR.PATCH release tag to move the alias to
+        required: true
 
 permissions:
   contents: write
+
+# Serialised because the job reads the tag list and then writes the alias, and
+# two writers on one `refs/tags/vN` race. One constant group covers every major:
+# expressions cannot split `v1.2.0` into `v1`, and keying on the whole tag would
+# put two releases of the same major in *different* groups -- no serialisation
+# at all, which is the one thing this must not do. The cost is that a third
+# queued run displaces the pending one (`cancel-in-progress` guards only the
+# running job); releases here are rare enough for that to beat the race.
+concurrency:
+  group: tag-major
+  cancel-in-progress: false
 
 jobs:
   tag-major:
     name: Move the major alias
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # A draft names a tag that does not exist yet, and a prerelease would put
+    # `@vMAJOR` consumers on unreleased code. Neither is visible from the tag
+    # name -- both are release metadata, and a prerelease can carry a perfectly
+    # well-formed v1.2.3 -- so the regex in the script cannot stand in for this.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.release.draft == false && github.event.release.prerelease == false)
     steps:
-      # Moves `vN` to whatever `vN.x.y` was just released, so consumers can pin
-      # a major and still receive fixes. Same mechanism pulumi/actions uses,
-      # pinned rather than tracking `@latest` -- the habit this repo is
-      # currently correcting.
-      - uses: Actions-R-Us/actions-tagger@330ddfac760021349fef7ff62b372f2f691c20fb # v2.0.3
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+      # Pinned to the default branch, not the event ref. A release event runs at
+      # the released tag's commit, so an unpinned checkout would execute
+      # whatever version of this script that commit carried -- for a release cut
+      # from a side branch, code that passed none of main's required checks,
+      # holding a token that can force-write tags.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
-          publish_latest_tag: false
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      # A script under github-script rather than a custom JS action: a real
+      # action needs a committed dist/ bundle, a workflow to stop it drifting
+      # from source, and a nodeNN runtime of our own to keep current -- the
+      # maintenance the abandoned tagger this replaced stopped paying.
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        with:
+          script: |
+            const move = require('./.github/scripts/move-major-alias.js')
+            await move({github, context, core})

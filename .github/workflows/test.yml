@@ -151,3 +151,24 @@ jobs:
             example.com/busl,
             github.com/golang/freetype,
             github.com/jmespath/go-jmespath
+
+  tagger:
+    name: Major alias script tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      # Node is preinstalled on the runner and `node:test` is built in, so this
+      # needs no setup step, no package.json and no dependencies.
+      #
+      # The test count is asserted because every cheap way to lose these tests
+      # is silent: Node's discovery skips dot-directories, so a bare
+      # `node --test` finds nothing and exits 0, and an unmatched glob is passed
+      # through literally and treated as a pattern matching nothing -- also
+      # exit 0. `pipefail` because otherwise the pipeline reports `tee`'s status
+      # and a genuinely failing test would pass here.
+      - run: |
+          set -euo pipefail
+          node --test --test-reporter=tap .github/scripts/*.test.js | tee tagger.tap
+          grep -qE '^# tests [1-9]' tagger.tap
