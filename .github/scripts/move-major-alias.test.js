@@ -2,8 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert");
 const move = require("./move-major-alias.js");
 
-// A fake Octokit: tag inventory in, attempted writes out. Same role as the `gh`
-// stub, but a plain object rather than a shim on PATH.
+// A fake Octokit: tag inventory in, attempted writes out.
 function harness({ tags, aliases }) {
   const writes = [];
   const notices = [];

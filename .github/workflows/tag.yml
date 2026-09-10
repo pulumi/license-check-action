@@ -7,6 +7,14 @@ on:
 permissions:
   contents: write
 
+# Serialised because the job reads the tag list and then writes the alias. Two
+# releases published seconds apart -- or a `published` and an `edited` on the
+# same release -- can otherwise both pass the supersede check and race the
+# write. Queued rather than cancelled: the later run is the one that decides.
+concurrency:
+  group: tag-major
+  cancel-in-progress: false
+
 jobs:
   tag-major:
     name: Move the major alias

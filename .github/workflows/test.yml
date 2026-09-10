@@ -159,4 +159,9 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
       # Node is preinstalled on the runner and `node:test` is built in, so this
       # needs no setup step, no package.json and no dependencies.
+      #
+      # The glob is not a stylistic choice. Node's test discovery skips
+      # dot-directories, so a bare `node --test` finds nothing here and exits 0
+      # -- a green job that ran no tests. Naming the files makes a rename fail
+      # loudly instead.
       - run: node --test .github/scripts/*.test.js

@@ -1,8 +1,5 @@
 // Moves the `vN` alias to the release named by the triggering event, so
 // consumers can pin a major and still receive fixes.
-//
-// Exported as a function taking github-script's own bindings, so the test suite
-// can call it with a fake `github` and assert on what it tried to write.
 const STABLE = /^v(\d+)\.(\d+)\.(\d+)$/;
 
 module.exports = async ({ github, context, core }) => {
@@ -16,8 +13,11 @@ module.exports = async ({ github, context, core }) => {
   }
   const major = `v${parsed[1]}`;
 
-  // The trailing dot is load-bearing: `tags/v2.` excludes v20.0.0, which a bare
-  // `tags/v2` prefix would sweep in.
+  // `matching-refs` is a prefix search, and the trailing dot is load-bearing:
+  // `tags/v2.` excludes v20.0.0, which a bare `tags/v2` would sweep in. Note
+  // the contrast with `getRef` below, which is an exact lookup on the
+  // near-identical `git/ref` endpoint -- `tags/v1.0` 404s there even when
+  // v1.0.0 exists, which is what makes the create branch reachable.
   const refs = await github.paginate(github.rest.git.listMatchingRefs, {
     owner, repo, ref: `tags/${major}.`,
   });
