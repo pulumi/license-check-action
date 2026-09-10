@@ -162,8 +162,13 @@ jobs:
       # Node is preinstalled on the runner and `node:test` is built in, so this
       # needs no setup step, no package.json and no dependencies.
       #
-      # The glob is not a stylistic choice. Node's test discovery skips
-      # dot-directories, so a bare `node --test` finds nothing here and exits 0
-      # -- a green job that ran no tests. Naming the files makes a rename fail
-      # loudly instead.
-      - run: node --test .github/scripts/*.test.js
+      # The test count is asserted because every cheap way to lose these tests
+      # is silent: Node's discovery skips dot-directories, so a bare
+      # `node --test` finds nothing and exits 0, and an unmatched glob is passed
+      # through literally and treated as a pattern matching nothing -- also
+      # exit 0. `pipefail` because otherwise the pipeline reports `tee`'s status
+      # and a genuinely failing test would pass here.
+      - run: |
+          set -euo pipefail
+          node --test --test-reporter=tap .github/scripts/*.test.js | tee tagger.tap
+          grep -qE '^# tests [1-9]' tagger.tap

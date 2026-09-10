@@ -8,6 +8,7 @@ const PREVIOUS_SHA = "0000000000000000000000000000000000000000";
 // A fake Octokit: tag inventory in, attempted writes out.
 function harness({ tags, aliases, failGetRefWith }) {
   const writes = [];
+  const commitRefs = [];
   const notices = [];
   const failures = [];
   const err = (status) => Object.assign(new Error(`HTTP ${status}`), { status });
@@ -25,18 +26,18 @@ function harness({ tags, aliases, failGetRefWith }) {
           return { data: { object: { sha: PREVIOUS_SHA } } };
         },
         createRef: async (p) => { writes.push(["create", p.ref, p.sha]); },
-        updateRef: async (p) => { writes.push(["update", p.ref, p.sha]); },
+        updateRef: async (p) => { writes.push(["update", p.ref, p.sha, p.force]); },
       },
       // Deliberately unlike anything derivable from a tag string, so writing
       // the tag where a sha belongs cannot coincidentally pass.
-      repos: { getCommit: async () => ({ data: { sha: COMMIT_SHA } }) },
+      repos: { getCommit: async ({ ref }) => { commitRefs.push(ref); return { data: { sha: COMMIT_SHA } }; } },
     },
   };
   const core = {
     notice: (m) => notices.push(m),
     setFailed: (m) => failures.push(m),
   };
-  return { github, core, writes, notices, failures };
+  return { github, core, writes, commitRefs, notices, failures };
 }
 
 async function run(tag, tags, aliases, failGetRefWith) {
@@ -63,10 +64,10 @@ const cases = [
   ["non-semver skips",            "latest",      ["v1.0.0"],                     ["v1"], /not a stable/,             null],
   ["prerelease-suffixed tag skips", "v1.2.0-rc.1", ["v1.0.0", "v1.1.0"],         ["v1"], /not a stable/,             null],
   ["superseded skips",            "v1.0.0",      ["v1.0.0", "v1.1.0"],           ["v1"], /v1\.1\.0 supersedes/,      null],
-  ["moves existing alias",        "v1.1.0",      ["v1.0.0", "v1.1.0"],           ["v1"], /moved v1 from .* to v1\.1\.0/, ["update", "tags/v1", COMMIT_SHA]],
+  ["moves existing alias",        "v1.1.0",      ["v1.0.0", "v1.1.0"],           ["v1"], /moved v1 from .* to v1\.1\.0/, ["update", "tags/v1", COMMIT_SHA, true]],
   ["creates missing alias",       "v2.0.0",      ["v1.1.0", "v2.0.0"],           ["v1"], /created v2 at v2\.0\.0/,   ["create", "refs/tags/v2", COMMIT_SHA]],
   ["v2.10.0 beats v2.9.0",        "v2.9.0",      ["v2.9.0", "v2.10.0"],          ["v2"], /v2\.10\.0 supersedes/,     null],
-  ["v20 is not a v2",             "v2.10.0",     ["v2.9.0","v2.10.0","v20.0.0"], ["v2"], /moved v2 from .* to v2\.10\.0/, ["update", "tags/v2", COMMIT_SHA]],
+  ["v20 is not a v2",             "v2.10.0",     ["v2.9.0","v2.10.0","v20.0.0"], ["v2"], /moved v2 from .* to v2\.10\.0/, ["update", "tags/v2", COMMIT_SHA, true]],
   ["v20 gets its own alias",      "v20.0.0",     ["v2.10.0", "v20.0.0"],         ["v2"], /created v20 at v20\.0\.0/, ["create", "refs/tags/v20", COMMIT_SHA]],
 ];
 
@@ -81,6 +82,11 @@ for (const [name, tag, tags, aliases, wantMsg, wantWrite] of cases) {
     }
   });
 }
+
+test("the commit is fetched for the released tag, not some other ref", async () => {
+  const h = await run("v1.1.0", ["v1.0.0", "v1.1.0"], ["v1"]);
+  assert.deepStrictEqual(h.commitRefs, ["v1.1.0"]);
+});
 
 test("the pre-move sha is reported, so a revert has something to read", async () => {
   const h = await run("v1.1.0", ["v1.0.0", "v1.1.0"], ["v1"]);

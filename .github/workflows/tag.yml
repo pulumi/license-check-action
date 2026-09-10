@@ -2,7 +2,7 @@ name: Tag
 
 on:
   release:
-    types: [published, edited, released]
+    types: [published, edited]
   # Lets the alias be re-driven without touching release state, and lets this be
   # rehearsed before its first live run. The `edited` path is the only other way
   # to re-run it, and that one has side effects.
@@ -15,12 +15,15 @@ on:
 permissions:
   contents: write
 
-# Serialised per major because the job reads the tag list and then writes the
-# alias. Keyed on the major rather than a constant: `cancel-in-progress: false`
-# protects only the running job, so with one shared group a third queued run
-# cancels the pending one, and an unrelated major's move is silently lost.
+# Serialised because the job reads the tag list and then writes the alias, and
+# two writers on one `refs/tags/vN` race. One constant group covers every major:
+# expressions cannot split `v1.2.0` into `v1`, and keying on the whole tag would
+# put two releases of the same major in *different* groups -- no serialisation
+# at all, which is the one thing this must not do. The cost is that a third
+# queued run displaces the pending one (`cancel-in-progress` guards only the
+# running job); releases here are rare enough for that to beat the race.
 concurrency:
-  group: tag-major-${{ github.event.release.tag_name || inputs.tag }}
+  group: tag-major
   cancel-in-progress: false
 
 jobs:
