@@ -1,0 +1,153 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  # This action can break without the repo changing, and a consumer's red CI
+  # should not be how we find out. `workflow_dispatch` matters as much as the
+  # schedule: GitHub disables scheduled runs after 60 days without a commit,
+  # and for this repo that is the normal cadence rather than an edge case.
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  permitted:
+    name: Passes on permissive licences
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: stable
+      - uses: ./
+        with:
+          module-path: testdata/permitted
+
+  forbidden:
+    name: Fails on a BUSL dependency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: stable
+      - id: check
+        uses: ./
+        continue-on-error: true
+        with:
+          module-path: testdata/forbidden
+      - name: Assert it failed, and failed on the licence
+        working-directory: testdata/forbidden
+        run: |
+          set -uo pipefail
+          if [[ "${{ steps.check.outcome }}" != "failure" ]]; then
+            echo "::error::the action passed on a BUSL dependency"
+            exit 1
+          fi
+          # The outcome alone is satisfied by any failure, including the action
+          # breaking entirely, so re-run the check and read the reason. Without
+          # this the job stays green exactly when detection stops working, which
+          # is the regression it exists to catch.
+          #
+          # The re-run is the `if` condition rather than a plain assignment
+          # because GitHub runs `run:` under `bash -e`: a bare assignment from a
+          # command expected to exit non-zero kills the step before the grep.
+          if out=$(go-licenses check ./... --include_tests \
+                     --ignore "$(go list -m)" \
+                     --ignore "$(go list std | awk 'NR > 1 { printf(",") } { printf("%s",$0) } END { print "" }')" 2>&1); then
+            echo "::error::the re-run passed on a BUSL dependency; detection is broken"
+            echo "${out}"
+            exit 1
+          fi
+          if ! grep -q "BUSL-1.1" <<<"${out}"; then
+            echo "::error::the action failed, but not on the licence:"
+            echo "${out}"
+            exit 1
+          fi
+
+  empty-ignore-entries:
+    name: Survives a stray comma (${{ matrix.shape }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every position an empty entry can occupy. All three produce the empty
+        # prefix, and the empty prefix matches everything.
+        shape:
+          - "github.com/not/in/this/module,"
+          - ",github.com/not/in/this/module"
+          - "github.com/not/in/this,,github.com/nor/this"
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: stable
+      # `--ignore` matches by prefix, so an empty entry is the empty prefix and
+      # matches everything. A trailing comma here used to pass the whole check
+      # with a BUSL dependency present -- a silently disabled gate, which is the
+      # worst failure this action has. The ignored module is deliberately absent
+      # from the fixture: only the stray comma could make this pass.
+      - id: check
+        uses: ./
+        continue-on-error: true
+        with:
+          module-path: testdata/forbidden
+          ignore-modules: ${{ matrix.shape }}
+      - name: Assert the stray comma did not disable the check
+        if: steps.check.outcome != 'failure'
+        run: |
+          echo "::error::a trailing comma in ignore-modules silently passed a BUSL dependency"
+          exit 1
+
+  input-is-data-not-shell:
+    name: Treats inputs as data
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: stable
+      # The `env:` binding in action.yml exists so an input cannot reach the
+      # shell as code. Without a test, a future edit reintroducing `${{ }}`
+      # interpolation would look identical and pass everything else.
+      - id: check
+        uses: ./
+        continue-on-error: true
+        with:
+          module-path: testdata/forbidden
+          ignore-modules: "example.com/busl\"; touch /tmp/pwned; #"
+      - name: Assert nothing was executed
+        run: |
+          if [[ -e /tmp/pwned ]]; then
+            echo "::error::ignore-modules was interpreted as shell"
+            exit 1
+          fi
+
+  ignore-modules:
+    name: Honours ignore-modules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: stable
+      # The folded multi-entry form is what every real consumer passes, and it
+      # is the shape the input's whitespace normalisation exists for. The extra
+      # entries are absent from the fixture on purpose: an ignore list is a set
+      # of prefixes, not an exact match.
+      - uses: ./
+        with:
+          module-path: testdata/forbidden
+          ignore-modules: >-
+            example.com/busl,
+            github.com/golang/freetype,
+            github.com/jmespath/go-jmespath

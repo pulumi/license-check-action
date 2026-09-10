@@ -1,0 +1,23 @@
+name: Tag
+
+on:
+  release:
+    types: [published, edited]
+
+permissions:
+  contents: write
+
+jobs:
+  tag-major:
+    name: Move the major alias
+    runs-on: ubuntu-latest
+    steps:
+      # Moves `vN` to whatever `vN.x.y` was just released, so consumers can pin
+      # a major and still receive fixes. Same mechanism pulumi/actions uses,
+      # pinned rather than tracking `@latest` -- the habit this repo is
+      # currently correcting.
+      - uses: Actions-R-Us/actions-tagger@330ddfac760021349fef7ff62b372f2f691c20fb # v2.0.3
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          publish_latest_tag: false

@@ -1,5 +1,5 @@
 name: 'BUSL Blocker'
-description: 'BUSL Blocker'
+description: 'Fail the build when a Go dependency carries a forbidden licence'
 inputs:
   module-path:
     description: 'Path to the go module you want to test'
@@ -11,22 +11,77 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - run: GOBIN="${{ github.action_path }}/bin/" go install github.com/pulumi/go-licenses/v2@latest
+    - name: Install go-licenses
       shell: bash
-    - run: echo "${{ github.action_path }}/bin/" >> $GITHUB_PATH
+      env:
+        # renovate: datasource=go depName=github.com/pulumi/go-licenses/v2
+        GO_LICENSES_VERSION: v2.0.0
+        GOBIN: ${{ github.action_path }}/bin
+      run: |
+        set -euo pipefail
+        # Pinned rather than @latest, which moved every consumer onto a new major
+        # without review when v2 shipped and broke pulumi-service CI outright when
+        # `latest` briefly stopped resolving (pulumi/pulumi-service#32691).
+        #
+        # Retried because the install still reaches the module proxy and the
+        # checksum database on every run, and an outage in either fails a
+        # consumer's PR for reasons that have nothing to do with their change.
+        for attempt in 1 2 3; do
+          if go install "github.com/pulumi/go-licenses/v2@${GO_LICENSES_VERSION}"; then
+            exit 0
+          fi
+          if [[ ${attempt} -lt 3 ]]; then
+            echo "go install failed (attempt ${attempt}/3), retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          fi
+        done
+        echo "::error::could not install go-licenses ${GO_LICENSES_VERSION} after 3 attempts"
+        exit 1
+
+    - name: Add go-licenses to PATH
       shell: bash
-    # We ignore the module being checked (go list -m) because we often cannot detect our
-    # own LICENSE.  golang will copy the LICENSE from the repo root into each package
-    # without its own when pulling dependencies, but that doesn't occur when we're running
-    # against a raw checkout.
-    #
-    # We ignore the standard library (go list std) as a workaround for
-    # https://github.com/google/go-licenses/issues/244. The awk script converts the output
-    # of `go list std` (line separated modules) to the input that `--ignore` expects
-    # (comma separated modules).
-    - run: |
-        go-licenses check ./... --ignore $(go list -m) --include_tests \
-        --ignore $(tr -d ' \n' <<<"${{ inputs.ignore-modules }}") \
-        --ignore $(go list std | awk 'NR > 1 { printf(",") } { printf("%s",$0) } END { print "" }')
+      run: echo "${GITHUB_ACTION_PATH}/bin" >> "$GITHUB_PATH"
+
+    - name: Check licences
       working-directory: ${{ inputs.module-path }}
       shell: bash
+      # Bound through the environment rather than interpolated into the script,
+      # so an input cannot inject shell.
+      env:
+        IGNORE_MODULES: ${{ inputs.ignore-modules }}
+      run: |
+        set -euo pipefail
+
+        # The module under test is ignored because we often cannot detect our own
+        # LICENSE: Go copies the repo-root licence into each package when pulling
+        # a dependency, but not when running against a raw checkout.
+        ignores=(--ignore "$(go list -m)")
+
+        # The standard library is ignored to work around
+        # https://github.com/google/go-licenses/issues/244. The awk converts
+        # `go list std` (one per line) into the comma-separated form --ignore takes.
+        ignores+=(--ignore "$(go list std | awk 'NR > 1 { printf(",") } { printf("%s",$0) } END { print "" }')")
+
+        # Only passed when the caller gave one. An empty `--ignore` consumes the
+        # following flag, and go-licenses then reads the argument after it as a
+        # package path -- so this died on `malformed import path` for anyone who
+        # left the input at its default.
+        trimmed=$(tr -d ' \t\r\n' <<<"${IGNORE_MODULES}")
+
+        # Empty entries are dropped, and that is a correctness fix rather than
+        # tidying. `--ignore` matches by prefix, an empty entry is the empty
+        # prefix, and the empty prefix matches every package -- so a single
+        # trailing comma turns the whole check into a silent pass, reporting
+        # success with a forbidden licence present. Warn rather than fail: the
+        # cost of a typo should not be a blocked PR, but it must not be a
+        # disabled gate either.
+        cleaned=$(sed -E 's/,+/,/g; s/^,//; s/,$//' <<<"${trimmed}")
+        if [[ ${cleaned} != "${trimmed}" ]]; then
+          echo "::warning::ignore-modules contained empty entries (a stray or repeated comma); they were dropped. An empty entry matches every package and would have passed this check silently."
+        fi
+
+        if [[ -n ${cleaned} ]]; then
+          ignores+=(--ignore "${cleaned}")
+        fi
+
+        go-licenses check ./... --include_tests "${ignores[@]}"

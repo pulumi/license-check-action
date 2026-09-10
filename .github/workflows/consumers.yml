@@ -1,0 +1,86 @@
+name: Consumers
+
+# The fixtures prove the action's logic; they say nothing about whether it still
+# works against a real dependency graph. This runs the action the way each
+# consumer runs it -- their module, their ignore list -- so a go-licenses bump
+# that misclassifies something in the wild is caught here rather than in ~30
+# repos' PR queues.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "43 5 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  consumer:
+    name: ${{ matrix.repo }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # A sample, not the fleet. These are the largest public consumers, so
+        # they carry the widest dependency graphs; adding every provider repo
+        # would multiply runtime without widening coverage much.
+        repo: [pulumi/pulumi-aws, pulumi/pulumi-gcp, pulumi/pulumi-eks]
+    steps:
+      - name: Check out this action
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          path: action
+
+      - name: Check out ${{ matrix.repo }}
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          repository: ${{ matrix.repo }}
+          path: consumer
+
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: stable
+
+      # Read the consumer's own ignore list out of their workflow rather than
+      # keeping a copy here. A copy would drift, and drift in this particular
+      # value is invisible: a wrong ignore list passes.
+      - id: theirs
+        name: Read their ignore-modules
+        run: |
+          set -euo pipefail
+          f=consumer/.github/workflows/license.yml
+          if [[ ! -f ${f} ]]; then
+            echo "::warning::${{ matrix.repo }} has no license.yml; skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Take the first matching step inside yq rather than piping through
+          # `head -1`: a consumer writing the value as a literal block scalar
+          # (`|`) keeps its newlines, and `head` would silently truncate the
+          # list to one entry -- which passes, because a shorter ignore list
+          # only ever makes the check stricter or wrong in the quiet direction.
+          ignore=$(yq -r '
+            [ .jobs[].steps[]
+              | select(.uses // "" | test("license-check-action"))
+              | .with["ignore-modules"] // "" ][0] // ""' "${f}")
+
+          # Random delimiter: the value is third-party content, and a static
+          # `EOF` in it would let it write arbitrary step outputs.
+          delim="EOF_$(openssl rand -hex 16)"
+          {
+            echo "skip=false"
+            echo "ignore<<${delim}"
+            echo "${ignore}"
+            echo "${delim}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Fetch their dependencies
+        if: steps.theirs.outputs.skip != 'true'
+        working-directory: consumer
+        run: go mod download
+
+      - name: Run this action against their module
+        if: steps.theirs.outputs.skip != 'true'
+        uses: ./action
+        with:
+          module-path: consumer
+          ignore-modules: ${{ steps.theirs.outputs.ignore }}
