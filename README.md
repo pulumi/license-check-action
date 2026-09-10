@@ -94,11 +94,16 @@ grant covering anything in this repo.
 
 `ignore-modules` entries are literal path prefixes, not globs.
 
-`testdata/tagger/` covers the alias logic instead, driving
-`.github/scripts/move-major-alias.sh` against a `gh` stub -- no token and no
-network, so what is under test is the branch logic deciding whether to move the
-alias, which is where a mistake points every `@vMAJOR` consumer at the wrong
-commit.
+The alias logic is covered separately: `.github/scripts/move-major-alias.js`
+runs under `actions/github-script`, and its tests call it with a fake Octokit
+that records attempted writes. `node --test` and `node:test` are both built in,
+so that suite needs no dependencies and no `package.json`.
+
+It is deliberately not a custom JS action. That would mean a committed `dist/`
+bundle, a workflow to stop the bundle drifting from source, and a `using:
+nodeNN` runtime of our own to keep current -- the same maintenance the
+abandoned tagger stopped paying. `github-script` is first-party, so GitHub
+carries the runtime.
 
 ### The go-licenses pin
 
