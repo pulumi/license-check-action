@@ -151,3 +151,14 @@ jobs:
             example.com/busl,
             github.com/golang/freetype,
             github.com/jmespath/go-jmespath
+
+  tagger:
+    name: Moves the major alias
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      # Runs against a `gh` stub, so it needs no token and no network: what is
+      # under test is the branch logic that decides whether to move the alias,
+      # which is where a mistake silently points every consumer pinning `vN` at
+      # the wrong commit.
+      - run: testdata/tagger/cases.sh

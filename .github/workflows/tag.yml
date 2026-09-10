@@ -12,12 +12,17 @@ jobs:
     name: Move the major alias
     runs-on: ubuntu-latest
     steps:
-      # Moves `vN` to whatever `vN.x.y` was just released, so consumers can pin
-      # a major and still receive fixes. Same mechanism pulumi/actions uses,
-      # pinned rather than tracking `@latest` -- the habit this repo is
-      # currently correcting.
-      - uses: Actions-R-Us/actions-tagger@330ddfac760021349fef7ff62b372f2f691c20fb # v2.0.3
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+      # Done inline rather than through Actions-R-Us/actions-tagger, which the
+      # other pulumi action repos use: it has had no release since 2023, still
+      # declares the long-removed node16 runtime, and is referenced there as a
+      # mutable `@latest` -- an unmaintained third party running against a
+      # write-capable token on every release.
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          publish_latest_tag: false
+          persist-credentials: false
+      - name: Move the major alias to this release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: .github/scripts/move-major-alias.sh
