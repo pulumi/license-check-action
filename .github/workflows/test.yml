@@ -153,10 +153,12 @@ jobs:
             github.com/jmespath/go-jmespath
 
   tagger:
-    name: Moves the major alias
+    name: Major alias script tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
       # Node is preinstalled on the runner and `node:test` is built in, so this
       # needs no setup step, no package.json and no dependencies.
       #

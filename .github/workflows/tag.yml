@@ -2,32 +2,52 @@ name: Tag
 
 on:
   release:
-    types: [published, edited]
+    types: [published, edited, released]
+  # Lets the alias be re-driven without touching release state, and lets this be
+  # rehearsed before its first live run. The `edited` path is the only other way
+  # to re-run it, and that one has side effects.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The vMAJOR.MINOR.PATCH release tag to move the alias to
+        required: true
 
 permissions:
   contents: write
 
-# Serialised because the job reads the tag list and then writes the alias. Two
-# releases published seconds apart -- or a `published` and an `edited` on the
-# same release -- can otherwise both pass the supersede check and race the
-# write. Queued rather than cancelled: the later run is the one that decides.
+# Serialised per major because the job reads the tag list and then writes the
+# alias. Keyed on the major rather than a constant: `cancel-in-progress: false`
+# protects only the running job, so with one shared group a third queued run
+# cancels the pending one, and an unrelated major's move is silently lost.
 concurrency:
-  group: tag-major
+  group: tag-major-${{ github.event.release.tag_name || inputs.tag }}
   cancel-in-progress: false
 
 jobs:
   tag-major:
     name: Move the major alias
     runs-on: ubuntu-latest
-    # `edited` fires on drafts as well, and a draft's `tag_name` names a tag
-    # that does not exist yet -- the version regex cannot catch that, because a
-    # draft can carry a perfectly well-formed v1.2.3.
-    if: github.event.release.draft == false
+    timeout-minutes: 5
+    # A draft names a tag that does not exist yet, and a prerelease would put
+    # `@vMAJOR` consumers on unreleased code. Neither is visible from the tag
+    # name -- both are release metadata, and a prerelease can carry a perfectly
+    # well-formed v1.2.3 -- so the regex in the script cannot stand in for this.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.release.draft == false && github.event.release.prerelease == false)
     steps:
+      # Pinned to the default branch, not the event ref. A release event runs at
+      # the released tag's commit, so an unpinned checkout would execute
+      # whatever version of this script that commit carried -- for a release cut
+      # from a side branch, code that passed none of main's required checks,
+      # holding a token that can force-write tags.
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
+          ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
       - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
         with:
           script: |
             const move = require('./.github/scripts/move-major-alias.js')

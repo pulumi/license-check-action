@@ -40,9 +40,14 @@ a GitHub release moves the alias automatically (`.github/workflows/tag.yml`).
 Consumers may pin either:
 
 ```yaml
-- uses: pulumi/license-check-action@v1   # fixes and new detections, no majors
-- uses: pulumi/license-check-action@main # every merge, immediately
+- uses: pulumi/license-check-action@v1     # fixes and new detections, no majors
+- uses: pulumi/license-check-action@v1.1.0 # frozen until you bump it
+- uses: pulumi/license-check-action@main   # every merge, immediately
 ```
+
+`@v1` moves, so two jobs in one workflow run can resolve it to different
+commits if a release lands between them. Pin the full version when you need a
+reproducible result, or while freezing during an incident.
 
 `@main` is what the ~30 current consumers use, and that is fine for now — this
 repo changes rarely and the fleet moving together has kept it consistent. The
@@ -67,6 +72,20 @@ prerelease would put `@vMAJOR` consumers on unreleased code.
 
 Publishing out of order is safe. The alias only ever moves forward, so
 re-publishing or editing an older release leaves it where it is.
+
+Release events run the workflow at the *released tag's* commit, not at `main`.
+So a release only moves the alias if its tag names a commit that already
+contains `.github/workflows/tag.yml` -- tagging an older commit silently runs
+whatever that commit carried. Tag releases on `main`.
+
+Because the alias only moves forward, a bad release cannot be undone by
+publishing an older one: the job reports the newer tag as superseding and
+exits. Reverting is a manual force-push, and the run that made the bad move
+logs the sha it replaced:
+
+```sh
+git push --force origin <the sha from the run log>:refs/tags/v1
+```
 
 A major bump is for changes to what the action *rejects* — a go-licenses major
 that reclassifies a licence, or a change to the inputs. Anything that only fixes
