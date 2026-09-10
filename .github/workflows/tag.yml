@@ -45,6 +45,10 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
+      # A script under github-script rather than a custom JS action: a real
+      # action needs a committed dist/ bundle, a workflow to stop it drifting
+      # from source, and a nodeNN runtime of our own to keep current -- the
+      # maintenance the abandoned tagger this replaced stopped paying.
       - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
