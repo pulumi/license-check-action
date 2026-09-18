@@ -40,11 +40,11 @@ jobs:
         with:
           go-version: stable
 
-      # Read the consumer's own ignore list out of their workflow rather than
-      # keeping a copy here. A copy would drift, and drift in this particular
-      # value is invisible: a wrong ignore list passes.
+      # Read the consumer's own inputs out of their workflow rather than
+      # keeping a copy here. A copy would drift, and drift in the ignore list
+      # is invisible: a wrong ignore list passes.
       - id: theirs
-        name: Read their ignore-modules
+        name: Read their module-path and ignore-modules
         run: |
           set -euo pipefail
           f=consumer/.github/workflows/license.yml
@@ -58,16 +58,16 @@ jobs:
           # (`|`) keeps its newlines, and `head` would silently truncate the
           # list to one entry -- which passes, because a shorter ignore list
           # only ever makes the check stricter or wrong in the quiet direction.
-          ignore=$(yq -r '
-            [ .jobs[].steps[]
-              | select(.uses // "" | test("license-check-action"))
-              | .with["ignore-modules"] // "" ][0] // ""' "${f}")
+          step='.jobs[].steps[] | select(.uses // "" | test("license-check-action"))'
+          ignore=$(yq -r "[ ${step} | .with[\"ignore-modules\"] // \"\" ][0] // \"\"" "${f}")
+          module=$(yq -r "[ ${step} | .with[\"module-path\"] // \".\" ][0] // \".\"" "${f}")
 
           # Random delimiter: the value is third-party content, and a static
           # `EOF` in it would let it write arbitrary step outputs.
           delim="EOF_$(openssl rand -hex 16)"
           {
             echo "skip=false"
+            echo "module-path=consumer/${module}"
             echo "ignore<<${delim}"
             echo "${ignore}"
             echo "${delim}"
@@ -75,12 +75,12 @@ jobs:
 
       - name: Fetch their dependencies
         if: steps.theirs.outputs.skip != 'true'
-        working-directory: consumer
+        working-directory: ${{ steps.theirs.outputs.module-path }}
         run: go mod download
 
       - name: Run this action against their module
         if: steps.theirs.outputs.skip != 'true'
         uses: ./action
         with:
-          module-path: consumer
+          module-path: ${{ steps.theirs.outputs.module-path }}
           ignore-modules: ${{ steps.theirs.outputs.ignore }}
