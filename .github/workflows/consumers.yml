@@ -35,10 +35,15 @@ jobs:
         with:
           repository: ${{ matrix.repo }}
           path: consumer
-          # The bridged providers `replace` their upstream Terraform provider
-          # with the submodule at upstream/, so without it their go.mod does
-          # not resolve.
-          submodules: true
+
+      # The bridged providers `replace` their upstream Terraform provider
+      # with the upstream/ submodule and then patch it, and the provider
+      # imports packages that exist only in the patched tree. This is what
+      # their own `make prepare_local_workspace` runs before the action.
+      - name: Prepare their upstream
+        if: hashFiles('consumer/scripts/upstream.sh') != ''
+        working-directory: consumer
+        run: ./scripts/upstream.sh init
 
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
         with:
