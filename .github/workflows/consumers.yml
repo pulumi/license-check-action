@@ -76,7 +76,9 @@ jobs:
           delim="EOF_$(openssl rand -hex 16)"
           {
             echo "skip=false"
-            echo "module-path=consumer/${module}"
+            echo "module-path<<${delim}"
+            echo "consumer/${module}"
+            echo "${delim}"
             echo "ignore<<${delim}"
             echo "${ignore}"
             echo "${delim}"
